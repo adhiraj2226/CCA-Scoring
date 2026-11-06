@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CCA Scoring</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#f6f7f9;--card:#fff;--tx:#1d2330;--mut:#6b7280;--bd:#e2e5ea;--ac:#3b5bdb;
+--gold:#d4a017;--silver:#8d949e;--green:#2e9e5b;--red:#d64545}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#14171d;--card:#1d222b;--tx:#e8ebf0;--mut:#98a1b0;--bd:#2d3440;--ac:#7c93f5}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:18px 14px 40px}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:var(--mut);margin:0 0 14px;font-size:13px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.tab{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:7px 14px;border-radius:999px;cursor:pointer;font:inherit}
+.tab.on{background:var(--ac);border-color:var(--ac);color:#fff}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:14px;margin-bottom:12px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=text]{padding:8px 10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;min-width:0}
+button.b{padding:8px 14px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);cursor:pointer;font:inherit}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px}
+.st{border:1px solid var(--bd);border-radius:10px;padding:8px 10px}
+.st b{display:block;font-size:20px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:760px}
+th,td{padding:7px 6px;border-bottom:1px solid var(--bd);text-align:center;font-size:13px}
+th{color:var(--mut);font-weight:600}
+td.nm,th.nm{text-align:left;min-width:130px}
+select{padding:5px;border:1px solid var(--bd);border-radius:6px;background:var(--bg);color:var(--tx);font:inherit;width:100%}
+.m{display:inline-block;padding:2px 9px;border-radius:999px;color:#fff;font-size:12px;font-weight:600}
+.g{background:var(--gold)}.s{background:var(--silver)}.n{background:var(--green)}.r{background:var(--red)}.z{background:none;color:var(--mut)}
+.x{background:none;border:none;color:var(--mut);cursor:pointer;font-size:16px}
+.note{font-size:12px;color:var(--mut)}
+</style>
+</head>
+<body>
+<main>
+<h1>CCA Scoring</h1>
+<p class="sub">Six activities per year · each scored 0–4 · medals are worked out automatically.</p>
+<div class="tabs" id="tabs"></div>
+<div class="card">
+  <div class="row">
+    <input type="text" id="cname" placeholder="Class name" aria-label="Class name">
+    <button class="b" id="rename">Rename class</button>
+  </div>
+</div>
+<div class="card">
+  <div class="row">
+    <input type="text" id="sname" placeholder="Add student name" aria-label="Student name" style="flex:1">
+    <button class="b p" id="add">Add student</button>
+    <button class="b" id="bulk">Paste many</button>
+  </div>
+</div>
+<div class="card"><div class="stats" id="stats"></div></div>
+<div class="card wrap"><table id="tbl"></table></div>
+<div class="row">
+  <button class="b" id="copy">Copy results as CSV</button>
+  <span class="note" id="msg"></span>
+</div>
+<p class="note">Activity medal: 4 gold · 3 silver · 2 green · 1 red. Overall (sum of six): 15 and above gold · 10–14 silver · 5–9 green · 1–4 red. Data is saved in this browser only.</p>
+</main>
+<script>
+var ACTS=["Rims / Calligraphy","Solo Singing","Drawing / Colouring","Clay Modeling","Story Telling","Fancy Dress"];
+var KEY="cca-data-v1";
+var data=null,cur=0;
+function fresh(){return{classes:[{name:"Class 1",students:[]},{name:"Class 2",students:[]},{name:"Class 3",students:[]}]}}
+try{var r=localStorage.getItem(KEY);if(r)data=JSON.parse(r)}catch(e){}
+if(!data||!data.classes)data=fresh();
+function save(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){}}
+function actMedal(v){return v>=4?["Gold","g"]:v==3?["Silver","s"]:v==2?["Green","n"]:v==1?["Red","r"]:["–","z"]}
+function allMedal(t){return t>=15?["Gold","g"]:t>=10?["Silver","s"]:t>=5?["Green","n"]:t>=1?["Red","r"]:["–","z"]}
+function tot(s){return s.s.reduce(function(a,b){return a+b},0)}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+function $(id){return document.getElementById(id)}
+function render(){
+  var c=data.classes[cur];
+  $("tabs").innerHTML=data.classes.map(function(k,i){return '<button class="tab'+(i==cur?' on':'')+'" data-i="'+i+'">'+esc(k.name)+'</button>'}).join("");
+  $("cname").value=c.name;
+  var cnt={g:0,s:0,n:0,r:0,z:0};
+  c.students.forEach(function(s){cnt[allMedal(tot(s))[1]]++});
+  $("stats").innerHTML='<div class="st"><b>'+c.students.length+'</b>Students</div>'+
+   '<div class="st"><b>'+cnt.g+'</b><span class="dot" style="background:var(--gold)"></span>Gold</div>'+
+   '<div class="st"><b>'+cnt.s+'</b><span class="dot" style="background:var(--silver)"></span>Silver</div>'+
+   '<div class="st"><b>'+cnt.n+'</b><span class="dot" style="background:var(--green)"></span>Green</div>'+
+   '<div class="st"><b>'+cnt.r+'</b><span class="dot" style="background:var(--red)"></span>Red</div>';
+  var h='<tr><th class="nm">Student</th>'+ACTS.map(function(a){return '<th>'+a+'</th>'}).join("")+'<th>Total</th><th>Overall</th><th></th></tr>';
+  c.students.forEach(function(s,i){
+    h+='<tr><td class="nm">'+esc(s.n)+'</td>';
+    s.s.forEach(function(v,j){
+      var m=actMedal(v);
+      h+='<td><select data-i="'+i+'" data-j="'+j+'">'+[0,1,2,3,4].map(function(o){return '<option'+(o==v?' selected':'')+'>'+o+'</option>'}).join("")+'</select><span class="m '+m[1]+'">'+m[0]+'</span></td>';
+    });
+    var t=tot(s),a=allMedal(t);
+    h+='<td><b>'+t+'</b></td><td><span class="m '+a[1]+'">'+a[0]+'</span></td><td><button class="x" data-del="'+i+'" title="Remove">✕</button></td></tr>';
+  });
+  if(!c.students.length)h+='<tr><td colspan="10" class="note">No students yet. Add some above.</td></tr>';
+  $("tbl").innerHTML=h;
+}
+document.addEventListener("click",function(e){
+  var t=e.target;
+  if(t.classList.contains("tab")){cur=+t.dataset.i;render()}
+  if(t.dataset.del!==undefined){data.classes[cur].students.splice(+t.dataset.del,1);save();render()}
+});
+document.addEventListener("change",function(e){
+  var t=e.target;
+  if(t.tagName=="SELECT"){data.classes[cur].students[+t.dataset.i].s[+t.dataset.j]=+t.value;save();render()}
+});
+function addOne(n){n=n.trim();if(n)data.classes[cur].students.push({n:n,s:[0,0,0,0,0,0]})}
+$("add").onclick=function(){addOne($("sname").value);$("sname").value="";save();render()};
+$("sname").onkeydown=function(e){if(e.key=="Enter")$("add").click()};
+$("rename").onclick=function(){var v=$("cname").value.trim();if(v){data.classes[cur].name=v;save();render()}};
+$("bulk").onclick=function(){
+  var v=prompt("Paste student names, one per line:");
+  if(v){v.split(/\n/).forEach(addOne);save();render()}
+};
+$("copy").onclick=function(){
+  var c=data.classes[cur];
+  var rows=[["Student"].concat(ACTS,["Total","Overall"]).join(",")];
+  c.students.forEach(function(s){rows.push(['"'+s.n.replace(/"/g,'""')+'"'].concat(s.s,[tot(s),allMedal(tot(s))[0]]).join(","))});
+  var txt=rows.join("\n");
+  function done(ok){$("msg").textContent=ok?"Copied. Paste into Excel or Sheets.":"Copy blocked by the browser."}
+  try{navigator.clipboard.writeText(txt).then(function(){done(true)},function(){done(false)})}catch(e){done(false)}
+};
+render();
+</script>
+</body>
+</html>
